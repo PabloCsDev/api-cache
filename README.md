@@ -1,133 +1,189 @@
-# 🚀 Sistema de Processamento Assíncrono com Retry e DLQ
+# 🚀 Cache API — Spring Boot + Redis + Docker
 
 <table align="center">
   <tr>
     <td><img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/java/java-original.svg" width="70"/></td>
     <td><img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/spring/spring-original.svg" width="70"/></td>
-    <td><img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/rabbitmq/rabbitmq-original.svg" width="70"/></td>
+    <td><img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/redis/redis-original.svg" width="70"/></td>
     <td><img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/docker/docker-original.svg" width="70"/></td>
-    <td><img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/apache/apache-original.svg" width="70"/></td>
+    <td><img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/postgresql/postgresql-original.svg" width="70"/></td>
   </tr>
 </table>
 
-Sistema robusto de processamento assíncrono com mecanismos de retentativa automática e Dead Letter Queue para mensagens com falha.
+API REST profissional desenvolvida com **Spring Boot**, utilizando **Redis como cache distribuído** para otimização de performance, **Docker Compose** para infraestrutura e **arquitetura limpa**, pronta para uso em ambiente real e portfólio técnico.
+
+---
 
 ## ✨ Funcionalidades
 
-- ✅ **API REST** para envio de mensagens
-- ✅ **Processamento assíncrono** com RabbitMQ
-- ✅ **Retry automático** com backoff exponencial (3 tentativas)
-- ✅ **Dead Letter Queue (DLQ)** para falhas persistentes
-- ✅ **Logs estruturados** em JSON para monitoramento
-- ✅ **Resiliência** com simulação de erros (30% chance)
-- ✅ **Docker Compose** para infraestrutura
+- ✅ **CRUD completo de produtos**
+- ✅ **Cache com Redis** usando Spring Cache
+- ✅ **Cache inteligente** (put, evict e cache miss)
+- ✅ **Tratamento global de exceções**
+- ✅ **API REST padronizada**
+- ✅ **Docker e Docker Compose**
+- ✅ **Java 17 + Spring Boot 3**
+- ✅ **Arquitetura em camadas**
+- ✅ **Mensagens de erro claras (404, 400)**
+
+---
 
 ## 🏗 Arquitetura
 ```
-Cliente → API Spring Boot → RabbitMQ → Consumer → Processamento
+Controller → Service → Repository → Database
 ↓
-DLQ (em caso de falha)
+Redis Cache
 ```
+
+- **Controller**: expõe endpoints REST
+- **Service**: regra de negócio + cache
+- **Repository**: persistência com JPA
+- **Redis**: cache distribuído
+- **Exception Handler**: padronização de erros
+
+---
+
 ## 🚀 Começando Rápido
 
 ### Pré-requisitos
 ```
 - Java 17+
 - Maven 3.8+
-- Docker e Docker Compose
+- Docker
+- Docker Compose
 ```
-### 1. Iniciar RabbitMQ
+---
+
+### 1️⃣ Subir a infraestrutura (Redis)
 
 ```
-docker-compose up -d
+docker compose up -d
 ```
-### 2. Compilar e executar
+2️⃣ Build da aplicação
 ```
-./mvnw clean compile
-./mvnw spring-boot:run
+mvn clean package
 ```
-### 3. Testar a API
+3️⃣ Subir a API
 ```
-curl -X POST http://localhost:8080/api/messages \
+docker compose up --build
+```
+A aplicação estará disponível em:
+```
+http://localhost:8080
+```
+🔗 Endpoints da API
+➕ Criar produto
+```
+curl -X POST http://localhost:8080/products \
   -H "Content-Type: application/json" \
-  -d "Mensagem de teste"
+  -d '{"name":"Notebook","price":3500}'
+  ```
+📄 Buscar produto por ID (com cache)
 ```
-### 📊 Monitoramento
-RabbitMQ Management: http://localhost:15672 (guest/guest)
+curl http://localhost:8080/products/1
+```
+🔥 A primeira chamada consulta o banco
+⚡ As próximas vêm direto do Redis
 
-Logs da aplicação: logs/application.log (formato JSON)
+✏ Atualizar produto (invalida cache)
+```
+curl -X PUT http://localhost:8080/products/1 \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Notebook RTX","price":5200}'
+  ``` 
+❌ Produto não encontrado
+```
+curl http://localhost:8080/products/999
+Resposta:
+```
+```
+{
+  "message": "Product not found"
+}
+```
+🧠 Estratégia de Cache
+```
+@Cacheable → leitura otimizada
 
-Health Check: http://localhost:8080/actuator/health
+@CachePut → atualização direta no cache
 
-### 🔧 Configuração
-Arquivo application.yml
+@CacheEvict → invalidação correta
+
+Cache desacoplado da regra de negócio
+
+Redis rodando em container isolado
+```
+
+⚙️ Configuração (application.yml)
 ```
 server:
   port: 8080
 
 spring:
-  rabbitmq:
-    host: localhost
-    port: 5672
-    username: guest
-    password: guest
-    listener:
-      simple:
-        retry:
-          enabled: true
-          max-attempts: 3
-          initial-interval: 1000ms
-          multiplier: 2
-          max-interval: 10000ms
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+  cache:
+    type: redis
+
+  data:
+    redis:
+      host: redis
+      port: 6379
 ```
-### Política de Retry
-1ª tentativa: Imediata
-
-2ª tentativa: 1 segundo depois
-
-3ª tentativa: 2 segundos depois
-
-Após 3 falhas: Mensagem enviada para DLQ
-
-### 📁 Estrutura do Projeto
+📁 Estrutura do Projeto
 ```
-src/main/java/com/hyus4ki/asyncpro/
-├── AsyncProApplication.java      # Classe principal
-├── config/
-│   └── RabbitMQConfig.java       # Configuração RabbitMQ
+src/main/java/com/hyus4ki/cacheapi
+├── CacheApiApplication.java
 ├── controller/
-│   └── MessageController.java    # API REST
-├── dto/
-│   └── ProcessMessageDTO.java    # Objeto de transferência
+│   └── ProductController.java
+├── service/
+│   └── ProductService.java
+├── repository/
+│   └── ProductRepository.java
+├── model/
+│   └── Product.java
 ├── exception/
-│   └── ProcessingException.java  # Exceções customizadas
-├── listener/
-│   └── MessageListener.java      # Consumidor de mensagens
-└── service/
-    ├── MessageProcessorService.java # Lógica de processamento
-    └── DLQService.java           # Serviço de DLQ
-```
-### 🧪 Testando Resiliência
-O sistema inclui simulação de erro (30% chance) para testar:
+│   ├── GlobalExceptionHandler.java
+│   └── ProductNotFoundException.java
+└── config/
+    └── CacheConfig.java
+``` 
+🐳 Docker Compose
+Redis isolado
 
-Retry automático
+API containerizada
 
-Roteamento para DLQ
+Rede interna entre serviços
 
-Logging de erros
+Fácil replicação em qualquer ambiente
 
-### 🔍 Exemplo de Logs
-```
-{
-  "@timestamp": "2025-12-17T02:42:20.425Z",
-  "message": "Processando mensagem: 62d493f9-73aa-49c2-af3f-c186ecc04e18",
-  "level": "INFO",
-  "application": "async-pro"
-}
-```
+📌 Objetivo do Projeto
+Este projeto demonstra, de forma prática:
 
-### Desenvolvido com ❤️ e ☕ por Pablo Carvalho
+Uso real de cache distribuído
 
-📧 Contato: devpablocarvalho@gmail.com
+Boas práticas com Spring Boot
 
-🔗 LinkedIn: www.linkedin.com/in/pablo-carvalho-140255260
+Organização de código profissional
+
+Conhecimento de Docker
+
+API pronta para produção
+
+👨‍💻 Desenvolvido por
+Pablo Carvalho
+
+☕ Desenvolvedor Back-end
+💻 Java | Spring Boot | Redis | Docker
+
+📧 Email: devpablocarvalho@gmail.com
+🔗 LinkedIn: https://www.linkedin.com/in/pablo-carvalho-140255260
